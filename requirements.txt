@@ -1,0 +1,3 @@
+# No pip packages required for the desktop application.
+# Python standard library: tkinter, sqlite3, http.server, csv, unittest.
+# On Windows select a Python installation that includes Tcl/Tk.

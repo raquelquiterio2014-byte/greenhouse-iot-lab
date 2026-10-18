@@ -1,0 +1,8 @@
+.venv/
+venv/
+.idea/
+__pycache__/
+*.pyc
+data/
+exports/
+firmware/greenhouse_esp32/secrets.h
