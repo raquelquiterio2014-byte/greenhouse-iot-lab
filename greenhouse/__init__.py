@@ -1,2 +1,2 @@
-"""Greenhouse IoT Lab 1.0.0."""
-__version__ = '1.0.0'
+"""Greenhouse IoT Lab 2.0.0 - Sensor selection and traceable calibration."""
+__version__ = "2.0.0"

@@ -1,78 +1,90 @@
-# Greenhouse IoT Lab
+# Greenhouse IoT Lab V2 — Sensor selection and calibrated measurements
 
-A Python desktop greenhouse dashboard for PyCharm, inspired by the four readings in the IoT architecture illustration. English interface; complete Portuguese setup guide in [docs/MANUAL_PT.md](docs/MANUAL_PT.md).
+Python/Tkinter greenhouse monitoring dashboard for PyCharm. English interface, Portuguese manual. Based on EmpreendAIoT Units 2–3: choose the physical quantity first, verify the sensor datasheet, calibrate, filter and install correctly.
 
-## Start in PyCharm
+## Run
 
-1. Extract the ZIP into a normal folder, for example `C:\Users\Master\PycharmProjects\Greenhouse_IoT_Lab`.
-2. Open that folder in PyCharm.
-3. Select a Python interpreter with Tcl/Tk. Development checks ran on Python 3.12; the code uses only the standard library.
-4. Open **main.py**, then click **Run**.
-
-There are no pip dependencies, cloud accounts, model APIs or subscriptions. Windows Python normally includes Tkinter; on Linux install your distribution's Tkinter package if needed.
+Extract all files. Open the folder containing `main.py` in PyCharm and run `main.py` with Python 3.12 and Tcl/Tk. No pip packages or paid services are needed for the desktop application.
 
 ```console
 python main.py
 ```
 
-## What it does
+## Selected sensors
 
-- Four value cards with actual time axes: air temperature, air humidity, soil moisture, light intensity.
-- Initial DEMO values: 24.8 °C, 62%, 38%, 720 lux. Subsequent readings change.
-- Normal, Dry soil, Hot day and Night demonstration scenarios; sampling every two seconds.
-- Simulated irrigation with hysteresis, manual stop, maximum run time and stale-data handling.
-- LIVE ESP32 mode only displays received sensor measurements; it never falls back to demo values.
-- Local HTTP receiver with bearer token, finite-number/range validation, body-size limit and duplicate detection.
-- SQLite history and event log. Demo and real histories are queried separately.
-- Export all readings for the selected mode to CSV, including provenance, timestamps and sample ID.
-- Classic ESP32 DevKit firmware for DHT22, capacitive soil sensor and BH1750.
-- Firmware samples every 60 seconds. A bounded RAM queue retains up to 32 readings while the PC/network is unavailable. Retry occurs every five seconds; oldest sample is dropped if full. RAM queue does not survive a reset.
+| Quantity on the dashboard | Sensor | Interface / classic ESP32 pin | Meaning |
+|---|---|---|---|
+| Air temperature, °C | DHT22 / AM2302 | Digital proprietary protocol, GPIO 4 | Air only; 0.1 °C output resolution does not mean ±0.1 °C accuracy |
+| Air relative humidity, % RH | Same DHT22 | Same GPIO 4 | Not soil moisture; protect from condensation |
+| Relative soil moisture index, % relative | DFRobot SEN0193 | Analog AO, GPIO 34 ADC1 | Two-point local scale; NOT volumetric water content |
+| Illuminance, lux | BH1750FVI compatible 3.3 V module | I2C, SDA 21 / SCL 22 / address 0x23 | Lux, NOT PAR, PPFD or direct photosynthesis measurement |
 
-## What it does not do
+SEN0193 is the documented reference product; generic capacitive v1.2 boards are not assumed electrically identical. Verify the purchased board and calibrate it individually. We did not add all sensors from the course catalogue: PIR, MQ, current sensing and pressure are not required for these four measurements.
 
-This is a local monitoring/teaching project. No physical relay, valve or pump is controlled. Demo irrigation is a simulation. Crop-specific thresholds and soil calibration must be established for the actual installation. No remote cloud dashboard, MQTT broker, AI model or production deployment is included.
+## What's new in V2
 
-The soil percentage is a relative dry/wet sensor calibration, not laboratory volumetric water content. Light is measured in lux by BH1750; lux does not directly measure plant PPFD/PAR.
+- **Sensors & calibration** tab: model, quantity, units, interface, operating range, accuracy/resolution, sampling and installation rationale.
+- Calibrate the installed soil probe using measured dry/wet ADC references, plus optional independent DHT22 temperature/humidity reference offsets.
+- Live soil is marked unavailable until calibration is confirmed. Example endpoints are never presented as real calibration.
+- V2 firmware averages **10 soil ADC readings** and separately averages calibrated `analogReadMilliVolts()` conversions.
+- Raw ADC, measured mV, raw light, raw/corrected DHT values, quality, calibration revision and immutable calibration snapshot are stored/exported.
+- Out-of-reference soil, ADC rails and BH1750 saturation are flagged; the affected latest chart/card is withheld instead of presenting it as a reliable measurement.
+- SQLite V1 databases migrate additively. Old rows remain explicitly `LEGACY_NO_RAW` and are never recalibrated in place.
+- V1 HTTP payloads remain accepted inside tightened ranges, but soil is not treated as calibrated. Update the firmware for the full V2 workflow.
+- Separate real and synthetic calibration, histories and scenarios. New **Light saturation** demo scenario.
 
-## Connect physical sensors
+## BH1750 range correction
 
-Follow [the Portuguese manual](docs/MANUAL_PT.md). The included Arduino sketch and wiring target a **classic ESP32 DevKit**. ESP32-C3/S3 pin assignments differ.
+V1's generic 200,000-lux limit was inappropriate for this fixed sensor mode. V2 fixes **H-resolution / MTreg 69** and computes `lux = raw16 / 1.2`. The numerical maximum is **54,612.5 lux**; raw 65,535 is flagged `LIGHT_SATURATED`. The course/datasheet headline mentions a wider nominal range and adjustable modes; this code does not silently switch modes or claim unlimited sunlight measurement. A zero reading is valid in darkness.
 
-In the app: **IoT connection & settings** → host `0.0.0.0` → **Save settings** → **Start receiver**. Put the PC LAN address and app token into your local firmware `secrets.h`. Switch to **LIVE ESP32**.
+## Calibration and installation
 
-Receiver default: `127.0.0.1:8765`. `GET /health` checks receiver availability. `POST /api/readings` accepts the JSON payload documented in the manual. HTTP is intended for a trusted private LAN; it is not encrypted and must not be exposed through internet port forwarding.
+Full instructions: [docs/MANUAL_PT.md](docs/MANUAL_PT.md).
 
-## Local files and GitHub
+The course's generic 1.5 m air-sensor mounting example must be adapted to representative canopy height in a greenhouse. The soil-sensor depth must match the root zone AND the probe's sensing-blade length; a generic 15 cm example is not an instruction to bury unprotected electronics. Put BH1750 above the canopy with upward-facing unobstructed sensing surface; check any optical window influence.
 
-Runtime files are created inside `data/` automatically, relative to this project, independent of PyCharm's working directory. `data/greenhouse.sqlite3` contains history, and `data/settings.json` contains the locally generated token. Both `data/` and firmware `secrets.h` are ignored by Git.
+DHT22 humidity figures vary with conditions: the cited sheet gives typical ±2 percentage points RH, maximum ±5. Correcting an offset or taking a mean does not certify precision. The ±5-point tolerance in a course exercise is a design requirement, not proven SEN0193 accuracy.
 
-Back up the SQLite file with the app closed. On GitHub upload the source, docs, tests and example secrets file. Do not upload local credentials or a populated runtime `data/` folder.
+## Data flow
 
-## Tests
+ESP32 physical readings → local Wi-Fi / HTTP JSON → validation → calibration / quality → SQLite → Tkinter dashboard / CSV.
 
-From the project root:
+No internet is required when local Wi-Fi and the receiver computer remain available. The ESP32 retains a bounded 32-sample RAM queue while the link/receiver is unavailable; power loss clears it, and overflow drops the oldest record. `sample_age_seconds` keeps backfill from being mistaken for new data.
+
+The local bearer-token HTTP service is for a trusted private LAN. It is not encrypted; do not publish the receiver directly to the internet. Configuration is in the GUI; secrets remain in ignored local files.
+
+## Actuators
+
+Irrigation is still simulated with hysteresis and a maximum run time. A relay and normally closed 12 V valve appear only as a future component specification. No physical GPIO, pump, valve, mains or fan driver is implemented. Choosing a relay contact rating is not equivalent to validating a load/inrush/protection design.
+
+## Test and validation
 
 ```console
 python -m unittest discover -s tests -v
 ```
 
-19 automated tests cover malformed/non-finite sensor values, stale readings, deduplication, source separation, late backfill ordering, concurrent storage, complete CSV export, scenarios, control rules and authenticated HTTP ingestion. These tests use temporary databases and do not put fake measurements into your live history.
+See [docs/VALIDATION.md](docs/VALIDATION.md) for executed checks and limitations. This package does not claim Windows rendering, ESP32 compilation, field calibration or physical installation testing.
 
-See [docs/VALIDATION.md](docs/VALIDATION.md) for precise validation scope. Desktop rendering and physical hardware operation require local validation; this package does not claim a Windows GUI or hardware test.
+## Main files
 
-## Architecture
+- `main.py`: PyCharm entry point.
+- `greenhouse/app.py`: dashboard, history and receiver settings.
+- `greenhouse/sensor_panel.py`: specification and calibration UI.
+- `greenhouse/sensors.py`: catalogue, conversion and calibration registry.
+- `greenhouse/core.py`: observations, SQLite migration, demo and rules.
+- `greenhouse/receiver.py`: authenticated local HTTP receiver.
+- `firmware/greenhouse_esp32/`: V2 sketch and example secrets.
+- `tests/`: automated regression and measurement tests.
 
-| Layer | Implementation |
-|---|---|
-| Perception | ESP32, DHT22, capacitive soil sensor, BH1750; separate demo generator |
-| Network | Local Wi-Fi + HTTP JSON, token, RAM retry queue |
-| Processing | Python validation, SQLite, monitoring thresholds; simulated irrigation rules |
-| Application | Tkinter charts, alerts, history, CSV export |
+Runtime `data/`, credentials and `secrets.h` are excluded by `.gitignore`. If uploading manually on GitHub, exclude them yourself. Back up a V1 database with the app closed before using V2. Open a new folder for V2; copy old data only if you deliberately want to migrate it.
 
-## Primary technical references
+## References
 
-- Espressif Arduino-ESP32 HTTP example: https://github.com/espressif/arduino-esp32/tree/master/libraries/HTTPClient/examples/BasicHttpClient
-- Adafruit DHT sensor library: https://github.com/adafruit/DHT-sensor-library
-- BH1750 library by claws: https://github.com/claws/BH1750
+- User-supplied EmpreendAIoT Unit 3, *Sensores e atuadores*: lessons 1–12 and accompanying text. Course files are not redistributed.
+- DHT22 manufacturer's sheet: https://cdn.sparkfun.com/assets/f/7/d/9/c/DHT22.pdf
+- DFRobot SEN0193: https://wiki.dfrobot.com/sen0193/
+- ROHM BH1750FVI Rev.D sheet: https://www.mouser.com/datasheet/2/348/bh1750fvi-e-186247.pdf
+- Espressif Arduino ADC: https://docs.espressif.com/projects/arduino-esp32/en/latest/api/adc.html
+- Arduino libraries: https://github.com/adafruit/DHT-sensor-library and https://github.com/claws/BH1750
 
-MIT licensed. Version 1.0.0.
+MIT license. Version 2.0.0.

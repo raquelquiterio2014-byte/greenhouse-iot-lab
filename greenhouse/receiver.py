@@ -7,9 +7,10 @@ from .core import Reading
 
 
 class Receiver:
-    def __init__(self, store, token, host='127.0.0.1', port=8765, device='greenhouse-01'):
+    def __init__(self, store, token, host='127.0.0.1', port=8765, device='greenhouse-01', calibration_registry=None):
         if not isinstance(token, str) or len(token) < 16:
             raise ValueError('Token must contain at least 16 characters')
+        self.calibration_registry = calibration_registry
         self.store, self.token, self.host, self.port, self.device = store, token, host, port, device
         self.server = None
         self.thread = None
@@ -54,7 +55,8 @@ class Receiver:
                         raise ValueError('Incomplete body')
                     # Python's JSON decoder accepts NaN; Reading rejects all non-finite values.
                     payload = json.loads(data)
-                    reading = Reading.from_payload(payload, device=parent.device)
+                    cal = parent.calibration_registry.current if parent.calibration_registry else None
+                    reading = Reading.from_payload(payload, device=parent.device, calibration=cal)
                 except (ValueError, UnicodeDecodeError, TimeoutError) as exc:
                     self.reply(400, {'error': str(exc)}); return
                 try:

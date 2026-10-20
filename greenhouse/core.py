@@ -10,9 +10,10 @@ import re
 import sqlite3
 import time
 import uuid
+from .sensors import Calibration, DEMO_CALIBRATION, BH1750_MAX_LUX, finite, soil_usable
 
 RANGES = {'temperature': (-40, 80), 'humidity': (0, 100),
-          'soil_moisture': (0, 100), 'light_lux': (0, 200000)}
+          'soil_moisture': (0, 100), 'light_lux': (0, BH1750_MAX_LUX)}
 
 
 def utcnow():
@@ -31,29 +32,60 @@ class Reading:
     soil_moisture: float
     light_lux: float
 
+    # All fields below preserve measurement provenance; V1 rows migrate as legacy.
+    soil_raw: float | None = None
+    soil_mv: float | None = None
+    soil_unclamped: float | None = None
+    light_raw: int | None = None
+    temperature_raw: float | None = None
+    humidity_raw: float | None = None
+    adc_samples: int | None = None
+    calibration_id: str = 'legacy'
+    calibration_snapshot: str = '{}'
+    quality: str = 'LEGACY_NO_RAW'
+    schema_version: int = 1
+
     @classmethod
-    def from_payload(cls, payload, source='real', device='greenhouse-01'):
+    def from_payload(cls, payload, source='real', device='greenhouse-01', calibration=None):
         if not isinstance(payload, dict):
             raise ValueError('JSON must be an object')
-        allowed = set(RANGES) | {'device_id', 'sample_id', 'sample_age_seconds'}
-        if set(payload) - allowed:
-            raise ValueError('Unexpected fields: ' + ', '.join(sorted(set(payload) - allowed)))
-        if payload.get('device_id') != device:
-            raise ValueError('Device ID does not match this greenhouse')
-        sample_id = payload.get('sample_id')
-        if not isinstance(sample_id, str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,96}', sample_id):
+        version=payload.get('schema_version',1)
+        if type(version) is not int or version not in (1,2):
+            raise ValueError('schema_version must be 1 or 2')
+        fields=set(RANGES) if version==1 else {'temperature','humidity','soil_raw','soil_mv','light_raw','adc_samples'}
+        allowed=fields | {'device_id','sample_id','sample_age_seconds','schema_version'}
+        if set(payload)-allowed:raise ValueError('Unexpected fields: '+', '.join(sorted(set(payload)-allowed)))
+        if payload.get('device_id')!=device:raise ValueError('Device ID does not match this greenhouse')
+        sid=payload.get('sample_id')
+        if not isinstance(sid,str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,96}',sid):
             raise ValueError('sample_id must contain 1-96 letters, digits or ._:-')
-        values = {}
-        for key, (low, high) in RANGES.items():
-            value = payload.get(key)
-            if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high:
-                raise ValueError(f'{key} must be a finite number between {low} and {high}')
-            values[key] = float(value)
-        age = payload.get('sample_age_seconds', 0)
-        if type(age) not in (int, float) or not math.isfinite(age) or not 0 <= age <= 86400:
-            raise ValueError('sample_age_seconds must be between 0 and 86400')
-        now = utcnow()
-        return cls(source, device, sample_id, (now-timedelta(seconds=age)).isoformat(), now.isoformat(), **values)
+        age=finite(payload.get('sample_age_seconds',0),'sample_age_seconds')
+        if not 0<=age<=86400:raise ValueError('sample_age_seconds must be between 0 and 86400')
+        now=utcnow(); extras={}
+        if version==1:
+            values={k:finite(payload.get(k),k) for k in RANGES}
+            for k,(low,high) in RANGES.items():
+                if not low<=values[k]<=high:raise ValueError(f'{k} outside selected sensor range')
+        else:
+            cal=(calibration or Calibration()).validate()
+            raw_t=finite(payload.get('temperature'),'temperature')
+            raw_h=finite(payload.get('humidity'),'humidity')
+            raw=finite(payload.get('soil_raw'),'soil_raw')
+            mv=finite(payload.get('soil_mv'),'soil_mv')
+            light=payload.get('light_raw');count=payload.get('adc_samples')
+            if not -40<=raw_t<=80 or not 0<=raw_h<=100:raise ValueError('DHT22 outside measurement range')
+            if not 0<=raw<=4095 or not 0<=mv<=3300:raise ValueError('Soil ADC or measured voltage outside input range')
+            if type(light) is not int or not 0<=light<=65535:raise ValueError('light_raw must be 16-bit integer')
+            if count!=10 or type(count) is not int:raise ValueError('V2 firmware must average 10 ADC samples')
+            soil,unclamped,flags=cal.soil_index(raw)
+            if light==65535:flags.append('LIGHT_SATURATED')
+            t=raw_t+cal.temperature_offset;h=raw_h+cal.humidity_offset
+            if not -40<=t<=80 or not 0<=h<=100:raise ValueError('Corrected DHT22 value outside range; review offsets')
+            values=dict(temperature=round(t,1),humidity=round(h,1),soil_moisture=soil,light_lux=light/1.2)
+            extras=dict(soil_raw=raw,soil_mv=mv,soil_unclamped=unclamped,light_raw=light,
+                temperature_raw=raw_t,humidity_raw=raw_h,adc_samples=count,calibration_id=cal.revision,
+                calibration_snapshot=cal.snapshot(),quality=';'.join(flags) or 'OK',schema_version=2)
+        return cls(source,device,sid,(now-timedelta(seconds=age)).isoformat(),now.isoformat(),**values,**extras)
 
     def age(self):
         return max(0, (utcnow()-datetime.fromisoformat(self.measured_at)).total_seconds())
@@ -71,6 +103,13 @@ class Store:
                 sample_id TEXT NOT NULL, measured_at TEXT NOT NULL, received_at TEXT NOT NULL,
                 temperature REAL, humidity REAL, soil_moisture REAL, light_lux REAL,
                 UNIQUE(source, device_id, sample_id))''')
+            existing={row['name'] for row in db.execute('PRAGMA table_info(readings)')}
+            extra_columns={'soil_raw':'REAL','soil_mv':'REAL','soil_unclamped':'REAL','light_raw':'INTEGER',
+                'temperature_raw':'REAL','humidity_raw':'REAL','adc_samples':'INTEGER',
+                'calibration_id':"TEXT DEFAULT 'legacy'",'calibration_snapshot':"TEXT DEFAULT '{}'",
+                'quality':"TEXT DEFAULT 'LEGACY_NO_RAW'",'schema_version':'INTEGER DEFAULT 1'}
+            for name,kind in extra_columns.items():
+                if name not in existing:db.execute(f'ALTER TABLE readings ADD COLUMN {name} {kind}')
             db.execute('CREATE INDEX IF NOT EXISTS idx_readings_source_time ON readings(source, measured_at)')
             db.execute('''CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY, created_at TEXT, source TEXT, message TEXT)''')
@@ -127,7 +166,7 @@ class Simulator:
     def set_scenario(self, name):
         self.scenario = name
         self.values = {'Normal': [24.8, 62., 38., 720.], 'Dry soil': [27., 48., 27., 980.],
-                       'Hot day': [39.5, 38., 43., 1600.], 'Night': [19., 75., 48., 4.]}[name][:]
+                       'Hot day': [39.5, 38., 43., 1600.], 'Night': [19., 75., 48., 4.], 'Light saturation': [30.,55.,40.,BH1750_MAX_LUX]}[name][:]
 
     def sample(self, irrigating=False, advance=True):
         if advance:
@@ -139,8 +178,14 @@ class Simulator:
                     delta = self.rng.uniform(-2, 2)
                 self.values[i] = round(max(limits[i][0], min(limits[i][1], self.values[i] + delta)), 2)
         self.seq += 1
-        return Reading.from_payload(dict(device_id='greenhouse-01', sample_id=f'{self.boot}:{self.seq}',
-            **dict(zip(RANGES, self.values))), source='demo')
+        t,h,soil,lux=self.values
+        raw=3000-soil*18
+        light=65535 if self.scenario=='Light saturation' else min(65534,round(lux*1.2))
+        return Reading.from_payload(dict(device_id='greenhouse-01',sample_id=f'{self.boot}:{self.seq}',
+            schema_version=2,temperature=t,humidity=h,soil_raw=raw,
+            soil_mv=raw/4095*3300,light_raw=light,adc_samples=10),
+            source='demo',calibration=DEMO_CALIBRATION)
+
 
 
 class Irrigation:
@@ -184,6 +229,8 @@ def alerts(reading, stale_seconds=180, temperature_high=38., soil_low=35.):
     out = []
     if reading.temperature > temperature_high:
         out.append(f'High air temperature: {reading.temperature:.1f} °C')
-    if reading.soil_moisture < soil_low:
+    if soil_usable(reading) and reading.soil_moisture < soil_low:
         out.append(f'Dry soil: {reading.soil_moisture:.1f}%')
+    if reading.quality != 'OK':
+        out.append('Measurement quality: '+reading.quality+' - review Sensors & calibration')
     return out or ['All monitored thresholds are normal']

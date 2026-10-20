@@ -1,20 +1,21 @@
-# Validation report — version 1.0.0
+# V2 validation report
 
-Date: 2026-10-18.
+Date: 2026-10-20. Runtime: Python 3.12.
 
 ## Executed
 
-- Python 3.12 compilation of all Python source files: passed.
-- `python -m unittest discover -s tests -v`: 19 tests passed.
-- HTTP requests were sent to a running local receiver bound to loopback on an ephemeral port, with temporary SQLite databases.
-- Validation includes duplicate request retry, old queued sample age, authentication rejection, invalid values, oversize bodies, CSV and concurrent storage.
-- ZIP content check: source, firmware example, instructions and tests included; runtime databases, credentials, caches and virtual environments excluded.
+- All Python modules compiled/imported without syntax errors.
+- `python -m unittest discover -s tests -v`: **33 tests passed**, including the 19 V1 regression tests.
+- Added checks for calibrated index, raw/corrected value separation, DHT offsets, invalid and reversed endpoints, unconfirmed references, out-of-reference index, ADC rails, BH1750 saturation, actual mode limits, filter/ADC teaching math, schema/type rejection, immutable calibration revisions, JSON registry round-trip, CSV provenance and V1 SQLite migration.
+- V2 integration requests ran against an actual loopback HTTP listener backed by a temporary SQLite database, including calibration changes between duplicate retries.
+- Package excludes local databases, tokens, firmware secrets, virtual environments and caches.
 
 ## Not executed
 
-- Desktop visual rendering: no graphical display service was available in the build environment. The Tkinter screen must be checked locally with the acceptance steps in the manual.
-- Native Windows/PyCharm execution: not performed in this environment.
-- ESP32 Arduino compilation, upload and physical sensor readings: not performed; require the actual board and installed sensor libraries.
-- Physical pump/valve operation: not part of this version.
+- Native Windows/PyCharm execution and visual desktop rendering: no graphical display was available here. Follow local acceptance steps in MANUAL_PT.md.
+- Arduino compilation, physical ESP32 upload, wiring and calibration: need the actual board, toolchain and sensor libraries.
+- Agricultural field accuracy, traceable metrology and actuator operation: not claimed. Physical actuation is not part of this version.
 
-The illustration used as visual inspiration is not a screenshot of this software. No claim of agricultural field validation is made.
+## Important interpretation
+
+`OK` means implemented validation checks passed; it does not certify accuracy or prove installation quality. Voltage is reported from the ESP32 API; it was not measured against a laboratory reference in this delivery. A calibration acknowledgement is entered by the operator, not independently verified by software.

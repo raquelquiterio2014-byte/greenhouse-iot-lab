@@ -9,6 +9,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from .core import Store, Simulator, Reading, Irrigation, alerts
 from .receiver import Receiver
+from .sensors import CalibrationRegistry, soil_usable
+from .sensor_panel import SensorPanel
 
 ROOT = Path(__file__).resolve().parent.parent
 BG = '#0b1424'
@@ -16,8 +18,8 @@ PANEL = '#15233a'
 TEXT = '#edf4fc'
 MUTED = '#9dafc8'
 COLORS = ['#55baff', '#49d5c4', '#8bdf84', '#ffce64']
-METRICS = [('temperature', 'Air temperature', '°C'), ('humidity', 'Air humidity', '%'),
-           ('soil_moisture', 'Soil moisture', '%'), ('light_lux', 'Light intensity', 'lux')]
+METRICS = [('temperature', 'Air temperature', '°C'), ('humidity', 'Air relative humidity', '% RH'),
+           ('soil_moisture', 'Soil moisture index', '% relative'), ('light_lux', 'Illuminance', 'lux')]
 
 
 def load_settings():
@@ -55,14 +57,22 @@ class MetricCard(tk.Frame):
         self.chart.bind('<Configure>', lambda e: self.draw())
 
     def update_readings(self, rows):
+        original=rows
+        if self.metric[0]=='soil_moisture':
+            rows=[r for r in rows if r['schema_version']==2 and not any(flag in r['quality'] for flag in
+                ('CALIBRATION_REQUIRED','SOIL_ADC_AT_RAIL','SOIL_OUTSIDE_CALIBRATION','LEGACY'))]
+            if original and (not rows or rows[-1]['id']!=original[-1]['id']):rows=[]
+        if self.metric[0]=='light_lux' and original and 'LIGHT_SATURATED' in original[-1]['quality']:
+            rows=[]
         self.rows = rows
         if not rows:
-            self.value.config(text='-- '+self.metric[2]); self.detail.config(text='No live sample received')
+            self.value.config(text='-- '+self.metric[2]); self.detail.config(text='Check calibration / quality' if original else 'No live sample received')
         else:
             values = [r[self.metric[0]] for r in rows]
             current = f'{values[-1]:,.0f}' if self.metric[0] == 'light_lux' else f'{values[-1]:.1f}'
             self.value.config(text=current+' '+self.metric[2])
-            self.detail.config(text=f'Window min {min(values):.1f}   |   max {max(values):.1f}')
+            model={'temperature':'DHT22','humidity':'DHT22','soil_moisture':'SEN0193','light_lux':'BH1750'}[self.metric[0]]
+            self.detail.config(text=f'{model} | Window min {min(values):.1f} / max {max(values):.1f}')
         self.draw()
 
     def draw(self):
@@ -100,12 +110,13 @@ class Dashboard:
     def __init__(self, root):
         self.root=root; self.settings=load_settings()
         self.store=Store(ROOT/'data'/'greenhouse.sqlite3')
+        self.calibrations=CalibrationRegistry(ROOT/'data'/'calibration.json')
         self.sim=Simulator(); self.irrigation=Irrigation(); self.receiver=None
         self.mode=tk.StringVar(value='demo'); self.paused=tk.BooleanVar(value=False)
         self.scenario=tk.StringVar(value='Normal'); self.auto=tk.BooleanVar(value=True)
         self.last_demo=time.monotonic(); self.last_alert=None; self.current_rows=[]
         self.closing=False
-        self.root.title('Greenhouse IoT Lab | Sensor Dashboard')
+        self.root.title('Greenhouse IoT Lab V2 | Sensor & Calibration Dashboard')
         self.root.geometry('1150x820'); self.root.minsize(900,700); self.root.configure(bg=BG)
         self.root.columnconfigure(0,weight=1); self.root.rowconfigure(2,weight=1)
         self.style()
@@ -149,6 +160,9 @@ class Dashboard:
         self.tabs=ttk.Notebook(self.root);self.tabs.grid(row=2,column=0,sticky='nsew',padx=22,pady=(0,10))
         overview=tk.Frame(self.tabs,bg=BG);history=tk.Frame(self.tabs,bg=BG);setup=tk.Frame(self.tabs,bg=BG)
         self.tabs.add(overview,text='Overview');self.tabs.add(history,text='History & events');self.tabs.add(setup,text='IoT connection & settings')
+        sensor_page=tk.Frame(self.tabs,bg=BG)
+        self.tabs.add(sensor_page,text='Sensors & calibration')
+        self.sensor_panel=SensorPanel(sensor_page,self.calibrations,self.store)
         self.overview=overview
         for i in range(2):overview.columnconfigure(i,weight=1,uniform='cards');overview.rowconfigure(i,weight=1)
         self.cards=[]
@@ -156,7 +170,7 @@ class Dashboard:
             card=MetricCard(overview,metric,COLORS[i]);card.grid(row=i//2,column=i%2,sticky='nsew',padx=(0,8) if i%2==0 else (8,0),pady=(10,0));self.cards.append(card)
         controls=tk.Frame(overview,bg=BG);controls.grid(row=2,column=0,columnspan=2,sticky='ew',pady=(10,4))
         self.label(controls,'Demo scenario:').pack(side='left')
-        self.selector=ttk.Combobox(controls,textvariable=self.scenario,values=['Normal','Dry soil','Hot day','Night'],state='readonly',width=12)
+        self.selector=ttk.Combobox(controls,textvariable=self.scenario,values=['Normal','Dry soil','Hot day','Night','Light saturation'],state='readonly',width=12)
         self.selector.pack(side='left',padx=8);self.selector.bind('<<ComboboxSelected>>',self.change_scenario)
         self.pause_button=ttk.Button(controls,text='Pause demo',command=self.pause);self.pause_button.pack(side='left')
         self.auto_button=tk.Checkbutton(controls,text='Auto irrigation (demo)',variable=self.auto,bg=BG,fg=TEXT,
@@ -174,10 +188,10 @@ class Dashboard:
         bar=tk.Frame(parent,bg=BG);bar.grid(row=0,column=0,sticky='ew',pady=12)
         self.label(bar,'Latest 120 samples in the selected mode. CSV includes all samples.').pack(side='left')
         ttk.Button(bar,text='Export CSV',command=self.export).pack(side='right')
-        cols=('time','source','device','temperature','humidity','soil','lux')
+        cols=('time','source','device','temperature','humidity','soil','lux','raw','mv','quality','cal')
         box=tk.Frame(parent,bg=BG);box.grid(row=1,column=0,sticky='nsew');box.columnconfigure(0,weight=1);box.rowconfigure(0,weight=1)
         self.tree=ttk.Treeview(box,columns=cols,show='headings',height=8)
-        for c,name,width in zip(cols,['Measured (local time)','Source','Device','Temp °C','Air %','Soil %','Light lux'],[175,70,130,95,95,95,110]):
+        for c,name,width in zip(cols,['Measured (local time)','Source','Device','Temp °C','Air % RH','Soil relative %','Light lux','Soil ADC avg','Soil mV avg','Quality','Calibration'],[175,70,130,95,95,115,110,115,115,240,150]):
             self.tree.heading(c,text=name);self.tree.column(c,width=width,minwidth=65)
         self.tree.grid(row=0,column=0,sticky='nsew')
         scroll=ttk.Scrollbar(box,orient='vertical',command=self.tree.yview);scroll.grid(row=0,column=1,sticky='ns');self.tree.configure(yscrollcommand=scroll.set)
@@ -270,7 +284,7 @@ class Dashboard:
     def start_receiver(self):
         if self.receiver:return
         if not self.save_settings():return
-        receiver=Receiver(self.store,self.settings['token'],self.settings['host'],self.settings['port'])
+        receiver=Receiver(self.store,self.settings['token'],self.settings['host'],self.settings['port'],calibration_registry=self.calibrations)
         try:receiver.start()
         except (OSError,ValueError) as exc:
             messagebox.showerror('Receiver',f'Could not start: {exc}');return
@@ -311,12 +325,12 @@ class Dashboard:
         for card in self.cards:card.update_readings(rows)
         stale=reading is not None and reading.age()>self.settings['stale_seconds']
         if source=='demo':
-            self.banner.configure(text='DEMONSTRATION • Synthetic sensor readings • No physical device is connected',bg='#203d51')
+            self.banner.configure(text='DEMO V2 • Synthetic sensor readings and calibration • No physical device is connected',bg='#203d51')
             state='ON' if self.irrigation.active else 'OFF'
             lock=' | time limit lock: reset scenario or reach 45% soil' if self.irrigation.locked else ''
             self.actuator.configure(text=f'Simulated valve: {state} | Demo sample: every 2 s'+lock)
         else:
-            state='NO DATA' if not reading else ('STALE' if stale else 'RECEIVING')
+            state='NO DATA' if not reading else ('STALE' if stale else ('REVIEW QUALITY' if reading.quality!='OK' else 'RECEIVING'))
             self.banner.configure(text=f'LIVE ESP32 • {state} • Real measurements only • Device greenhouse-01',bg='#57402b' if stale or not reading else '#16483e')
             self.actuator.configure(text='Monitoring only | Physical irrigation is not connected or controlled by this software')
         messages=alerts(reading,self.settings['stale_seconds'],self.settings['temperature_high'],self.settings['soil_low'])
@@ -331,7 +345,7 @@ class Dashboard:
             self.tree.delete(*self.tree.get_children())
             for r in reversed(rows):
                 timestamp=datetime.fromisoformat(r['measured_at']).astimezone().strftime('%Y-%m-%d %H:%M:%S')
-                self.tree.insert('', 'end',values=(timestamp,r['source'],r['device_id'],f"{r['temperature']:.1f}",f"{r['humidity']:.1f}",f"{r['soil_moisture']:.1f}",f"{r['light_lux']:.0f}"))
+                self.tree.insert('', 'end',values=(timestamp,r['source'],r['device_id'],f"{r['temperature']:.1f}",f"{r['humidity']:.1f}",f"{r['soil_moisture']:.1f}",f"{r['light_lux']:.0f}",r['soil_raw'],r['soil_mv'],r['quality'],r['calibration_id']))
             self.last_history_key=key
         self.event_text.configure(state='normal');self.event_text.delete('1.0','end')
         for event in self.store.events(source):
