@@ -1,3 +1,7 @@
+# V3: abra primeiro [V3_START_HERE_PT.md](V3_START_HERE_PT.md)
+
+O texto abaixo documenta a base de sensores e calibração da V2, preservada na V3. Na interface V3, a aba de configuração chama-se **IoT settings**.
+
 # Greenhouse IoT Lab V2 — Manual de execução e medição
 
 ## 1. Abrir no PyCharm

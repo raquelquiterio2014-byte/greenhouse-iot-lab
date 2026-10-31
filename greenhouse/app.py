@@ -11,8 +11,10 @@ from .core import Store, Simulator, Reading, Irrigation, alerts
 from .receiver import Receiver
 from .sensors import CalibrationRegistry, soil_usable
 from .sensor_panel import SensorPanel
+from .connection_panel import ConnectionPanel
+from .config import ROOT, DATA_DIR, load_settings
+from .connectivity import summarize
 
-ROOT = Path(__file__).resolve().parent.parent
 BG = '#0b1424'
 PANEL = '#15233a'
 TEXT = '#edf4fc'
@@ -21,21 +23,6 @@ COLORS = ['#55baff', '#49d5c4', '#8bdf84', '#ffce64']
 METRICS = [('temperature', 'Air temperature', '°C'), ('humidity', 'Air relative humidity', '% RH'),
            ('soil_moisture', 'Soil moisture index', '% relative'), ('light_lux', 'Illuminance', 'lux')]
 
-
-def load_settings():
-    path = ROOT/'data'/'settings.json'
-    path.parent.mkdir(exist_ok=True)
-    defaults = dict(token=secrets.token_urlsafe(24), device='greenhouse-01', host='127.0.0.1',
-                    port=8765, stale_seconds=180, temperature_high=38., soil_low=35.)
-    if path.exists():
-        try:
-            loaded = json.loads(path.read_text(encoding='utf-8'))
-            if isinstance(loaded, dict):
-                defaults.update({k: v for k, v in loaded.items() if k in defaults})
-        except (OSError, ValueError):
-            pass
-    path.write_text(json.dumps(defaults, indent=2), encoding='utf-8')
-    return defaults
 
 
 class MetricCard(tk.Frame):
@@ -109,15 +96,15 @@ class MetricCard(tk.Frame):
 class Dashboard:
     def __init__(self, root):
         self.root=root; self.settings=load_settings()
-        self.store=Store(ROOT/'data'/'greenhouse.sqlite3')
-        self.calibrations=CalibrationRegistry(ROOT/'data'/'calibration.json')
+        self.store=Store(DATA_DIR/'greenhouse.sqlite3')
+        self.calibrations=CalibrationRegistry(DATA_DIR/'calibration.json')
         self.sim=Simulator(); self.irrigation=Irrigation(); self.receiver=None
         self.mode=tk.StringVar(value='demo'); self.paused=tk.BooleanVar(value=False)
         self.scenario=tk.StringVar(value='Normal'); self.auto=tk.BooleanVar(value=True)
         self.last_demo=time.monotonic(); self.last_alert=None; self.current_rows=[]
         self.closing=False
-        self.root.title('Greenhouse IoT Lab V2 | Sensor & Calibration Dashboard')
-        self.root.geometry('1150x820'); self.root.minsize(900,700); self.root.configure(bg=BG)
+        self.root.title('Greenhouse IoT Lab V3 | Connectivity & Sensor Dashboard')
+        self.root.geometry(f'{min(1150,max(900,self.root.winfo_screenwidth()-60))}x{min(820,max(650,self.root.winfo_screenheight()-80))}'); self.root.minsize(900,650); self.root.configure(bg=BG)
         self.root.columnconfigure(0,weight=1); self.root.rowconfigure(2,weight=1)
         self.style()
         self.build_header(); self.build_tabs()
@@ -147,9 +134,9 @@ class Dashboard:
         head=tk.Frame(self.root,bg=BG);head.grid(row=0,column=0,sticky='ew',padx=22,pady=(16,5))
         head.columnconfigure(0,weight=1)
         self.label(head,'GREENHOUSE / IoT LAB',anchor='w').grid(row=0,column=0,sticky='w')
-        tk.Label(head,text='From sensor data to action',bg=BG,fg=TEXT,font=('Segoe UI',23,'bold')).grid(row=1,column=0,sticky='w')
+        tk.Label(head,text='From sensor data to action',bg=BG,fg=TEXT,font=('Segoe UI',21,'bold')).grid(row=1,column=0,sticky='w')
         modes=tk.Frame(head,bg=BG);modes.grid(row=0,column=1,rowspan=2)
-        for title,value in [('DEMO','demo'),('LIVE ESP32','real')]:
+        for title,value in [('DEMO','demo'),('HTTP TEST','test'),('LIVE ESP32','real')]:
             tk.Radiobutton(modes,text=title,variable=self.mode,value=value,command=self.change_mode,
                 bg=BG,fg=TEXT,selectcolor='#214e60',activebackground=BG,activeforeground=TEXT,
                 font=('Segoe UI',10,'bold'),indicatoron=0,padx=13,pady=9).pack(side='left',padx=3)
@@ -159,10 +146,13 @@ class Dashboard:
     def build_tabs(self):
         self.tabs=ttk.Notebook(self.root);self.tabs.grid(row=2,column=0,sticky='nsew',padx=22,pady=(0,10))
         overview=tk.Frame(self.tabs,bg=BG);history=tk.Frame(self.tabs,bg=BG);setup=tk.Frame(self.tabs,bg=BG)
-        self.tabs.add(overview,text='Overview');self.tabs.add(history,text='History & events');self.tabs.add(setup,text='IoT connection & settings')
+        self.tabs.add(overview,text='Overview');self.tabs.add(history,text='History & events');self.tabs.add(setup,text='IoT settings')
         sensor_page=tk.Frame(self.tabs,bg=BG)
         self.tabs.add(sensor_page,text='Sensors & calibration')
         self.sensor_panel=SensorPanel(sensor_page,self.calibrations,self.store)
+        network_page=tk.Frame(self.tabs,bg=BG)
+        self.tabs.add(network_page,text='Connectivity lab')
+        self.connection_panel=ConnectionPanel(network_page,self)
         self.overview=overview
         for i in range(2):overview.columnconfigure(i,weight=1,uniform='cards');overview.rowconfigure(i,weight=1)
         self.cards=[]
@@ -234,7 +224,7 @@ class Dashboard:
 
     def change_mode(self):
         self.irrigation.stop();self.last_alert=None;self.last_history_key=None
-        live=self.mode.get()=='real'
+        live=self.mode.get()!='demo'
         self.selector.configure(state='disabled' if live else 'readonly')
         for widget in [self.pause_button,self.auto_button,self.manual_button,self.stop_button]:widget.configure(state='disabled' if live else 'normal')
         self.render()
@@ -274,7 +264,7 @@ class Dashboard:
         if self.receiver and (host!=self.settings['host'] or port!=self.settings['port']):
             messagebox.showinfo('Receiver','Stop the receiver before changing host or port.');return False
         self.settings.update(host=host,port=port,temperature_high=temp,soil_low=soil,stale_seconds=stale)
-        (ROOT/'data'/'settings.json').write_text(json.dumps(self.settings,indent=2),encoding='utf-8')
+        (DATA_DIR/'settings.json').write_text(json.dumps(self.settings,indent=2),encoding='utf-8')
         return True
 
     def copy_token(self):
@@ -325,15 +315,21 @@ class Dashboard:
         for card in self.cards:card.update_readings(rows)
         stale=reading is not None and reading.age()>self.settings['stale_seconds']
         if source=='demo':
-            self.banner.configure(text='DEMO V2 • Synthetic sensor readings and calibration • No physical device is connected',bg='#203d51')
+            self.banner.configure(text='DEMO V3 • Synthetic sensor readings and calibration • No physical device is connected',bg='#203d51')
             state='ON' if self.irrigation.active else 'OFF'
             lock=' | time limit lock: reset scenario or reach 45% soil' if self.irrigation.locked else ''
             self.actuator.configure(text=f'Simulated valve: {state} | Demo sample: every 2 s'+lock)
+        elif source=='test':
+            status=summarize(self.store,'test',self.settings['stale_seconds'])
+            self.banner.configure(text=f"HTTP TEST • SYNTHETIC DATA • Contact: {status['contact_state']} • Measurements: {status['measurement_state']}",bg='#3e3657')
+            self.actuator.configure(text='Local HTTP device simulation | Separate test history | No physical sensor or actuator validation')
         else:
-            state='NO DATA' if not reading else ('STALE' if stale else ('REVIEW QUALITY' if reading.quality!='OK' else 'RECEIVING'))
-            self.banner.configure(text=f'LIVE ESP32 • {state} • Real measurements only • Device greenhouse-01',bg='#57402b' if stale or not reading else '#16483e')
+            state='NO DATA' if not reading else ('STALE' if stale else ('REVIEW QUALITY' if reading.quality!='OK' else 'FRESH SAMPLE'))
+            self.banner.configure(text=f'LIVE ESP32 • {state} • Receiver: {"ON" if self.receiver else "OFF"} • Hardware validation pending',bg='#57402b' if stale or not reading else '#16483e')
             self.actuator.configure(text='Monitoring only | Physical irrigation is not connected or controlled by this software')
         messages=alerts(reading,self.settings['stale_seconds'],self.settings['temperature_high'],self.settings['soil_low'])
+        if source in ('real','test') and summarize(self.store,source)['sensor_status']=='FAULT':
+            messages=['Sensor fault reported by heartbeat']+messages
         if source=='demo' and self.paused.get():messages=['DEMO PAUSED - readings are frozen']
         alert=' | '.join(messages)
         warning=not messages[0].startswith('All ')
@@ -354,10 +350,12 @@ class Dashboard:
         self.event_text.configure(state='disabled')
         last='none' if not reading else datetime.fromisoformat(reading.measured_at).astimezone().strftime('%d/%m %H:%M:%S')
         age='' if not reading else f' | Sample age: {reading.age():.0f} s'
+        self.connection_panel.refresh()
         self.footer.configure(text=f'SQLite history | Source: {source} | Samples: {self.store.count(source):,} | Last measured: {last}'+age)
 
     def close(self):
         self.closing=True;self.irrigation.stop()
+        self.connection_panel.stop()
         if self.receiver:self.receiver.stop()
         self.root.destroy()
 

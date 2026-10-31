@@ -1,21 +1,24 @@
-# V2 validation report
+# V3 validation report
 
-Date: 2026-10-20. Runtime: Python 3.12.
+Date: 2026-10-31. Python 3.12.
 
-## Executed
+## Executed software checks
 
-- All Python modules compiled/imported without syntax errors.
-- `python -m unittest discover -s tests -v`: **33 tests passed**, including the 19 V1 regression tests.
-- Added checks for calibrated index, raw/corrected value separation, DHT offsets, invalid and reversed endpoints, unconfirmed references, out-of-reference index, ADC rails, BH1750 saturation, actual mode limits, filter/ADC teaching math, schema/type rejection, immutable calibration revisions, JSON registry round-trip, CSV provenance and V1 SQLite migration.
-- V2 integration requests ran against an actual loopback HTTP listener backed by a temporary SQLite database, including calibration changes between duplicate retries.
-- Package excludes local databases, tokens, firmware secrets, virtual environments and caches.
+- Python modules compile and desktop modules import without syntax/import errors.
+- 54 tests pass: all 33 V1/V2 regression checks plus 21 V3 transport/outbox checks.
+- V3 integration tests start a real loopback HTTP receiver with temporary SQLite files.
+- Tested source separation, receiver stop/restart, simulated acknowledgement loss, identical retries, ID-content conflicts, invalid token/metadata, heartbeat-only contact, backfill age, sensor-fault indication and authenticated status reports.
+- Tested persistent synthetic queue, capacity/drop accounting, retry backoff, invalid acknowledgements, permanent rejections, explicit offline pause and expired entries.
+- CSV preserves transport metadata in addition to existing raw/calibrated values.
+- `run_v3_checks.py` creates a machine-readable software test report with explicit hardware limitations.
 
-## Not executed
+## Pending
 
-- Native Windows/PyCharm execution and visual desktop rendering: no graphical display was available here. Follow local acceptance steps in MANUAL_PT.md.
-- Arduino compilation, physical ESP32 upload, wiring and calibration: need the actual board, toolchain and sensor libraries.
-- Agricultural field accuracy, traceable metrology and actuator operation: not claimed. Physical actuation is not part of this version.
+- Visual rendering on Windows/PyCharm. No GUI display service is available in this environment; desktop modules were imported, not visually validated.
+- Arduino toolchain compilation/upload and ESP32 physical execution.
+- Sensor wiring, installation, field calibration, actual Wi-Fi disconnect/reconnect and physical sensor-fault responses.
+- Physical pump/valve actuation is not implemented.
 
-## Important interpretation
+The persistent outbox tests apply to the Python synthetic device, not to ESP32 flash storage. The physical firmware queue is RAM-only. Connection contact does not prove fresh measurements or agricultural suitability. No cloud, MQTT or AI integration is part of V3.
 
-`OK` means implemented validation checks passed; it does not certify accuracy or prove installation quality. Voltage is reported from the ESP32 API; it was not measured against a laboratory reference in this delivery. A calibration acknowledgement is entered by the operator, not independently verified by software.
+Manual acceptance steps: `docs/V3_START_HERE_PT.md`. Record physical evidence in `docs/HARDWARE_VALIDATION.csv`; do not mark physical checks complete based only on software tests.

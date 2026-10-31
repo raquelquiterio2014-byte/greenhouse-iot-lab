@@ -4,6 +4,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import csv
+import json
 import math
 import random
 import re
@@ -44,6 +45,7 @@ class Reading:
     calibration_snapshot: str = '{}'
     quality: str = 'LEGACY_NO_RAW'
     schema_version: int = 1
+    transport_snapshot: str = '{}'
 
     @classmethod
     def from_payload(cls, payload, source='real', device='greenhouse-01', calibration=None):
@@ -107,12 +109,17 @@ class Store:
             extra_columns={'soil_raw':'REAL','soil_mv':'REAL','soil_unclamped':'REAL','light_raw':'INTEGER',
                 'temperature_raw':'REAL','humidity_raw':'REAL','adc_samples':'INTEGER',
                 'calibration_id':"TEXT DEFAULT 'legacy'",'calibration_snapshot':"TEXT DEFAULT '{}'",
-                'quality':"TEXT DEFAULT 'LEGACY_NO_RAW'",'schema_version':'INTEGER DEFAULT 1'}
+                'quality':"TEXT DEFAULT 'LEGACY_NO_RAW'",'schema_version':'INTEGER DEFAULT 1',
+                'transport_snapshot':"TEXT DEFAULT '{}'"}
             for name,kind in extra_columns.items():
                 if name not in existing:db.execute(f'ALTER TABLE readings ADD COLUMN {name} {kind}')
             db.execute('CREATE INDEX IF NOT EXISTS idx_readings_source_time ON readings(source, measured_at)')
             db.execute('''CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY, created_at TEXT, source TEXT, message TEXT)''')
+            db.execute("""CREATE TABLE IF NOT EXISTS transport_log (
+                id INTEGER PRIMARY KEY,created_at TEXT NOT NULL,source TEXT NOT NULL,
+                outcome TEXT NOT NULL,http_status INTEGER,sample_id TEXT,metadata TEXT NOT NULL DEFAULT '{}')""")
+            db.execute('CREATE INDEX IF NOT EXISTS idx_transport_source ON transport_log(source,id)')
 
     def connect(self):
         db = sqlite3.connect(self.path, timeout=5)
@@ -125,6 +132,29 @@ class Store:
             cur = db.execute('INSERT OR IGNORE INTO readings (' + ','.join(fields) +
                              ') VALUES (' + ','.join('?' for _ in fields) + ')', tuple(fields.values()))
             return bool(cur.rowcount)
+
+    def ingest(self,reading):
+        """Atomically accept a new sample or acknowledge an identical retransmission.
+
+        Raw measurement content defines identity. Retry age, reception time, transport
+        counters and current calibration can change without rewriting the first record.
+        """
+        fields=asdict(reading)
+        identity=('schema_version','temperature_raw','humidity_raw','soil_raw','soil_mv','light_raw','adc_samples')
+        if reading.schema_version==1:identity=('schema_version','temperature','humidity','soil_moisture','light_lux')
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            old=db.execute('SELECT * FROM readings WHERE source=? AND device_id=? AND sample_id=?',
+                (reading.source,reading.device_id,reading.sample_id)).fetchone()
+            if old is not None:
+                return 'duplicate' if all(old[k]==fields[k] for k in identity) else 'conflict'
+            db.execute('INSERT INTO readings ('+','.join(fields)+') VALUES ('+','.join('?' for _ in fields)+')',tuple(fields.values()))
+            return 'accepted'
+
+    def transport_event(self,source,outcome,status=200,sample_id=None,metadata=None):
+        with self.connect() as db:
+            db.execute('INSERT INTO transport_log(created_at,source,outcome,http_status,sample_id,metadata) VALUES(?,?,?,?,?,?)',
+                (utcnow().isoformat(),source,outcome,status,sample_id,json.dumps(metadata or {},sort_keys=True)))
 
     def recent(self, source, limit=120):
         with self.connect() as db:

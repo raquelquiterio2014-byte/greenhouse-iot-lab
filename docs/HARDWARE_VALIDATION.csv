@@ -1,0 +1,11 @@
+check,status,observation,date,operator
+ESP32 firmware compiles with installed libraries,PENDING,,,
+DHT22 protected and checked against reference,PENDING,,,
+Soil probe calibrated in installed substrate,PENDING,,,
+BH1750 responds and saturation is recognized,PENDING,,,
+Physical LIVE readings arrive without TEST mixing,PENDING,,,
+Heartbeat sensor-fault indication checked,PENDING,,,
+Local Wi-Fi disconnect and replay checked,PENDING,,,
+Power loss confirms RAM queue limitation,PENDING,,,
+Windows GUI layout inspected,PENDING,,,
+CSV and connection report reviewed,PENDING,,,
