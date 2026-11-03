@@ -12,6 +12,7 @@ from .receiver import Receiver
 from .sensors import CalibrationRegistry, soil_usable
 from .sensor_panel import SensorPanel
 from .connection_panel import ConnectionPanel
+from .analysis_panel import AnalysisPanel
 from .config import ROOT, DATA_DIR, load_settings
 from .connectivity import summarize
 
@@ -103,7 +104,7 @@ class Dashboard:
         self.scenario=tk.StringVar(value='Normal'); self.auto=tk.BooleanVar(value=True)
         self.last_demo=time.monotonic(); self.last_alert=None; self.current_rows=[]
         self.closing=False
-        self.root.title('Greenhouse IoT Lab V3 | Connectivity & Sensor Dashboard')
+        self.root.title('Greenhouse IoT Lab V4 | Trends & AI-Assisted Review')
         self.root.geometry(f'{min(1150,max(900,self.root.winfo_screenwidth()-60))}x{min(820,max(650,self.root.winfo_screenheight()-80))}'); self.root.minsize(900,650); self.root.configure(bg=BG)
         self.root.columnconfigure(0,weight=1); self.root.rowconfigure(2,weight=1)
         self.style()
@@ -119,7 +120,7 @@ class Dashboard:
         style.configure('.',font=('Segoe UI',10))
         style.configure('TFrame',background=BG)
         style.configure('TNotebook',background=BG,borderwidth=0)
-        style.configure('TNotebook.Tab',background=PANEL,foreground=MUTED,padding=(18,9))
+        style.configure('TNotebook.Tab',background=PANEL,foreground=MUTED,padding=(12,9))
         style.map('TNotebook.Tab',background=[('selected','#23435a')],foreground=[('selected',TEXT)])
         style.configure('TButton',background='#24485d',foreground=TEXT,padding=(12,7),borderwidth=0)
         style.map('TButton',background=[('active','#32677b')])
@@ -153,6 +154,9 @@ class Dashboard:
         network_page=tk.Frame(self.tabs,bg=BG)
         self.tabs.add(network_page,text='Connectivity lab')
         self.connection_panel=ConnectionPanel(network_page,self)
+        analysis_page=tk.Frame(self.tabs,bg=BG)
+        self.tabs.add(analysis_page,text='AI analysis')
+        self.analysis_panel=AnalysisPanel(analysis_page,self)
         self.overview=overview
         for i in range(2):overview.columnconfigure(i,weight=1,uniform='cards');overview.rowconfigure(i,weight=1)
         self.cards=[]
@@ -315,7 +319,7 @@ class Dashboard:
         for card in self.cards:card.update_readings(rows)
         stale=reading is not None and reading.age()>self.settings['stale_seconds']
         if source=='demo':
-            self.banner.configure(text='DEMO V3 • Synthetic sensor readings and calibration • No physical device is connected',bg='#203d51')
+            self.banner.configure(text='DEMO V4 • Synthetic sensor readings and calibration • No physical device is connected',bg='#203d51')
             state='ON' if self.irrigation.active else 'OFF'
             lock=' | time limit lock: reset scenario or reach 45% soil' if self.irrigation.locked else ''
             self.actuator.configure(text=f'Simulated valve: {state} | Demo sample: every 2 s'+lock)

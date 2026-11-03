@@ -1,0 +1,33 @@
+GREENHOUSE V4 | REVIEW_REQUIRED
+Source: demo | Input: synthetic_case: Rising heat
+Snapshot cutoff (UTC): 2026-11-03T22:48:13.226268+00:00
+Analysis engine: NOT_REQUESTED (LOCAL_ANALYSIS_ONLY)
+Authorization: NO ACTION AUTHORIZED
+Hardware validation: PENDING
+Synthetic data
+Human review required: True
+
+temperature | last 39.90 | delta +9.90 °C
+  Linear slope +10.800 °C/min over 55 s
+
+humidity | last 62.00 | delta +0.00 percentage points RH
+  Linear slope +0.000 percentage points RH/min over 55 s
+
+soil_moisture | last 38.00 | delta +0.00 relative index points
+  Linear slope +0.000 relative index points/min over 55 s
+
+light_lux | last 720.00 | delta +0.00 lux
+  Linear slope +0.000 lux/min over 55 s
+
+EVIDENCE (all deterministic findings are retained)
+E01 | temperature | RISING | Descriptive change in this snapshot; not a forecast or agricultural diagnosis.
+E02 | temperature | ABOVE_LIMIT | Above the configured demonstration/monitoring threshold, not a crop safety limit.
+
+LOCAL SUGGESTED CHECKS
+Check sensor placement, shielding and exposure with a responsible person.
+Review the installed sensor calibration references and verification record.
+Request human review; this report authorizes no equipment action.
+
+LIMITATIONS: NO_CROP_CONTEXT, NO_FIELD_VALIDATION, NO_ACTUATION, SYNTHETIC_DATA
+Heuristic screening, not a trained anomaly model, crop diagnosis, prediction or irrigation instruction.
+This report refers only to the captured snapshot; later readings require another explicit analysis.

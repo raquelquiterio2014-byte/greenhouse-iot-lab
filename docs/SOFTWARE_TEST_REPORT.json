@@ -1,15 +1,16 @@
 {
   "project": "Greenhouse IoT Lab",
-  "version": "3.0.0",
-  "created_at": "2026-10-31T14:43:40.026558+00:00",
-  "software_tests": 54,
+  "version": "4.0.0",
+  "created_at": "2026-11-03T22:48:14.966046+00:00",
+  "software_tests": 78,
   "failures": 0,
   "errors": 0,
   "skipped": 0,
   "software_checks_passed": true,
+  "gemini_live_api": "NOT_EXECUTED",
+  "gemini_test_scope": "Mocked provider responses, strict selection validation and local fallback",
   "hardware_validation": "PENDING",
   "esp32_compilation": "NOT_EXECUTED",
   "windows_gui_execution": "NOT_EXECUTED",
-  "physical_actuation": false,
-  "scope": "Temporary SQLite databases and loopback HTTP tests; no sensor field validation."
+  "physical_actuation": false
 }

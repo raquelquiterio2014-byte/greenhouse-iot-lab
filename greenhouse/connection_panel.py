@@ -55,7 +55,7 @@ class ConnectionPanel:
         self.app.mode.set('test');self.app.change_mode();self.app.tabs.select(0)
 
     def report(self):
-        return dict(version='3.0.0',receiver_running=self.app.receiver is not None,hardware_validation='PENDING',
+        return dict(version='4.0.0',receiver_running=self.app.receiver is not None,hardware_validation='PENDING',
             real=summarize(self.app.store,'real',self.app.settings['stale_seconds']),
             test=summarize(self.app.store,'test',self.app.settings['stale_seconds']),
             synthetic_client=self.client.snapshot() if self.client else None)

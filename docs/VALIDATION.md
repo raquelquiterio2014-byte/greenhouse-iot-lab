@@ -1,24 +1,24 @@
-# V3 validation report
+# V4 validation report
 
-Date: 2026-10-31. Python 3.12.
+Date: 2026-11-03. Python 3.12.
 
-## Executed software checks
+## Executed
 
-- Python modules compile and desktop modules import without syntax/import errors.
-- 54 tests pass: all 33 V1/V2 regression checks plus 21 V3 transport/outbox checks.
-- V3 integration tests start a real loopback HTTP receiver with temporary SQLite files.
-- Tested source separation, receiver stop/restart, simulated acknowledgement loss, identical retries, ID-content conflicts, invalid token/metadata, heartbeat-only contact, backfill age, sensor-fault indication and authenticated status reports.
-- Tested persistent synthetic queue, capacity/drop accounting, retry backoff, invalid acknowledgements, permanent rejections, explicit offline pause and expired entries.
-- CSV preserves transport metadata in addition to existing raw/calibrated values.
-- `run_v3_checks.py` creates a machine-readable software test report with explicit hardware limitations.
+- Python compilation and desktop-module import checks.
+- 78 automated tests: 54 V1–V3 regression checks and 24 V4 quality, statistics, provider-contract and audit tests.
+- Synthetic normal/heat/dry/spike/stale/uncalibrated/saturation scenarios.
+- Gates for source mixing, missing provenance, numeric/range errors, future/duplicate timestamps, sampling gaps and sensor-fault heartbeats.
+- Exact descriptive-slope fixture and configured-limit signals; immutable observation/calibration snapshot and audit storage.
+- Gemini mocked valid/malformed/truncated/error responses, bounded 429 retries, no retry for auth failure, missing key and explicit local fallback.
+- Model selection cannot invent evidence/actuator commands, omit mandatory limitations or replace deterministic findings and authorization.
+- Loopback HTTP and persistent-queue regression tests remain passing.
+- Headless analysis CLI and test-report entry point checked.
 
-## Pending
+## Not executed / not claimed
 
-- Visual rendering on Windows/PyCharm. No GUI display service is available in this environment; desktop modules were imported, not visually validated.
-- Arduino toolchain compilation/upload and ESP32 physical execution.
-- Sensor wiring, installation, field calibration, actual Wi-Fi disconnect/reconnect and physical sensor-fault responses.
-- Physical pump/valve actuation is not implemented.
+- Live Gemini API request, provider account access, quota, billing or agronomic quality of model selections.
+- Native Windows/PyCharm visual layout.
+- ESP32 compilation, physical sensor installation, field calibration or agricultural operating validation.
+- Any physical actuator operation. Firmware remains V3; no new hardware driver is introduced.
 
-The persistent outbox tests apply to the Python synthetic device, not to ESP32 flash storage. The physical firmware queue is RAM-only. Connection contact does not prove fresh measurements or agricultural suitability. No cloud, MQTT or AI integration is part of V3.
-
-Manual acceptance steps: `docs/V3_START_HERE_PT.md`. Record physical evidence in `docs/HARDWARE_VALIDATION.csv`; do not mark physical checks complete based only on software tests.
+Local screening is a documented heuristic, not a trained predictive/anomaly model. Provider tests use mocks and temporary databases. Hardware validation remains PENDING. Every report retains NO_ACTION_AUTHORIZED.
