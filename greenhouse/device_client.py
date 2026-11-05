@@ -1,5 +1,6 @@
 """Persistent synthetic HTTP device. Its URL is restricted to the loopback test route."""
 from __future__ import annotations
+from contextlib import closing, contextmanager
 import json
 from pathlib import Path
 import random
@@ -23,8 +24,11 @@ class Outbox:
             db.execute("INSERT OR IGNORE INTO meta VALUES('dropped',0)")
             db.execute('CREATE TABLE IF NOT EXISTS rejected(id INTEGER PRIMARY KEY,sample_id TEXT,reason TEXT,created_at REAL)')
 
+    @contextmanager
     def connect(self):
-        db=sqlite3.connect(self.path,timeout=5);db.row_factory=sqlite3.Row;return db
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            db.row_factory = sqlite3.Row
+            yield db
 
     def enqueue(self,payload,now=None):
         now=time.time() if now is None else now

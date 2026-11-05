@@ -1,5 +1,6 @@
 """Validated observations, local SQLite history and deterministic demo rules."""
 from __future__ import annotations
+from contextlib import closing, contextmanager
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -121,10 +122,11 @@ class Store:
                 outcome TEXT NOT NULL,http_status INTEGER,sample_id TEXT,metadata TEXT NOT NULL DEFAULT '{}')""")
             db.execute('CREATE INDEX IF NOT EXISTS idx_transport_source ON transport_log(source,id)')
 
+    @contextmanager
     def connect(self):
-        db = sqlite3.connect(self.path, timeout=5)
-        db.row_factory = sqlite3.Row
-        return db
+        with closing(sqlite3.connect(self.path, timeout=5)) as db, db:
+            db.row_factory = sqlite3.Row
+            yield db
 
     def add(self, reading):
         fields = asdict(reading)
