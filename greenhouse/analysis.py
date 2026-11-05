@@ -41,7 +41,7 @@ def analyze_rows(rows,source,now=None,stale_seconds=180,temperature_high=38.,soi
     if not 10<=stale_seconds<=86400:raise ValueError('Invalid freshness threshold')
     for v in (temperature_high,soil_low):
         if type(v) not in (int,float) or not math.isfinite(v):raise ValueError('Invalid monitoring threshold')
-    report=dict(version='4.0.0',run_id=uuid.uuid4().hex,created_at=now.isoformat(),cutoff=now.isoformat(),
+    report=dict(version='5.0.0',run_id=uuid.uuid4().hex,created_at=now.isoformat(),cutoff=now.isoformat(),
         source=source,input_kind=input_kind,synthetic=source!='real',status='BLOCKED',human_review_required=True,
         authorization='NO_ACTION_AUTHORIZED',hardware_validation='PENDING',gate_reasons=[],metrics={},findings=[],
         observations=[],excluded_rows=0,config=dict(stale_seconds=stale_seconds,temperature_high=temperature_high,

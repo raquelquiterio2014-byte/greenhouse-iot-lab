@@ -104,7 +104,7 @@ class Dashboard:
         self.scenario=tk.StringVar(value='Normal'); self.auto=tk.BooleanVar(value=True)
         self.last_demo=time.monotonic(); self.last_alert=None; self.current_rows=[]
         self.closing=False
-        self.root.title('Greenhouse IoT Lab V4 | Trends & AI-Assisted Review')
+        self.root.title('Greenhouse IoT Lab V5 | Integrated Monitoring')
         self.root.geometry(f'{min(1150,max(900,self.root.winfo_screenwidth()-60))}x{min(820,max(650,self.root.winfo_screenheight()-80))}'); self.root.minsize(900,650); self.root.configure(bg=BG)
         self.root.columnconfigure(0,weight=1); self.root.rowconfigure(2,weight=1)
         self.style()
@@ -319,7 +319,7 @@ class Dashboard:
         for card in self.cards:card.update_readings(rows)
         stale=reading is not None and reading.age()>self.settings['stale_seconds']
         if source=='demo':
-            self.banner.configure(text='DEMO V4 • Synthetic sensor readings and calibration • No physical device is connected',bg='#203d51')
+            self.banner.configure(text='DEMO V5 • Synthetic sensor readings and calibration • No physical device is connected',bg='#203d51')
             state='ON' if self.irrigation.active else 'OFF'
             lock=' | time limit lock: reset scenario or reach 45% soil' if self.irrigation.locked else ''
             self.actuator.configure(text=f'Simulated valve: {state} | Demo sample: every 2 s'+lock)

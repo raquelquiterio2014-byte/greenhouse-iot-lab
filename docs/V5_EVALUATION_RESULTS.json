@@ -1,0 +1,69 @@
+{
+  "version": "5.0.0",
+  "scope": "SYNTHETIC_LOOPBACK_HTTP",
+  "passed": true,
+  "cases": [
+    {
+      "scenario": "normal",
+      "passed": true,
+      "expected_status": "SCREENED",
+      "checks": {
+        "all_samples_delivered_once": true,
+        "history_isolated": true,
+        "heartbeat_accepted": true,
+        "expected_status": true,
+        "expected_signal": true,
+        "analysis_saved": true,
+        "local_only": true,
+        "no_action_authorized": true
+      }
+    },
+    {
+      "scenario": "reconnect_heat",
+      "passed": true,
+      "expected_status": "REVIEW_REQUIRED",
+      "checks": {
+        "all_samples_delivered_once": true,
+        "history_isolated": true,
+        "heartbeat_accepted": true,
+        "expected_status": true,
+        "expected_signal": true,
+        "analysis_saved": true,
+        "local_only": true,
+        "no_action_authorized": true,
+        "offline_queue_retained": true,
+        "lost_ack_deduplicated": true
+      }
+    },
+    {
+      "scenario": "stale",
+      "passed": true,
+      "expected_status": "BLOCKED",
+      "checks": {
+        "all_samples_delivered_once": true,
+        "history_isolated": true,
+        "heartbeat_accepted": true,
+        "expected_status": true,
+        "expected_signal": true,
+        "analysis_saved": true,
+        "local_only": true,
+        "no_action_authorized": true
+      }
+    },
+    {
+      "scenario": "sensor_fault",
+      "passed": true,
+      "expected_status": "BLOCKED",
+      "checks": {
+        "all_samples_delivered_once": true,
+        "history_isolated": true,
+        "heartbeat_accepted": true,
+        "expected_status": true,
+        "expected_signal": true,
+        "analysis_saved": true,
+        "local_only": true,
+        "no_action_authorized": true
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# Greenhouse IoT Lab V4 — Trends and AI-assisted review
+# Greenhouse IoT Lab V5 — Integrated monitoring and evaluation
 
 Educational Python desktop greenhouse monitoring with calibrated observations, HTTP connectivity tests and snapshot-based trend screening. English interface; Portuguese setup guides. V4 adds an optional Gemini evidence-review adapter while preserving the deterministic measurement-quality gate.
 
@@ -11,6 +11,16 @@ Educational Python desktop greenhouse monitoring with calibrated observations, H
 5. Try **Stale readings** and see the report withhold analysis.
 
 No pip packages, paid API or hardware are required for local execution. Step-by-step: [docs/V4_START_HERE_PT.md](docs/V4_START_HERE_PT.md).
+
+## What V5 adds
+
+Run `python run_v5_evaluation.py` for four isolated end-to-end scenarios.
+Synthetic schema-v2 readings pass through the persistent outbox, loopback HTTP
+receiver, calibration, SQLite and local analysis. The JSON report records
+individual checks, delivery results, connectivity state and analysis evidence.
+The evaluation uses temporary databases and never calls Gemini or controls hardware.
+
+See the [V5 guide in Portuguese](docs/V5_START_HERE_PT.md).
 
 ## What V4 adds
 
@@ -48,7 +58,7 @@ Sensors: DHT22 / AM2302 (air temperature and relative humidity), DFRobot SEN0193
 
 ## Retained connectivity and firmware
 
-V3 receiver, bounded outbox, acknowledgements, deduplication, heartbeat/sensor-fault reporting and source isolation remain. See [docs/V3_START_HERE_PT.md](docs/V3_START_HERE_PT.md) and [docs/API_V3.md](docs/API_V3.md). The sketch remains firmware 3.0.0; no new hardware or physical actuator driver is needed for V4's analysis layer. Receiver process reports application version 4.0.0.
+V3 receiver, bounded outbox, acknowledgements, deduplication, heartbeat/sensor-fault reporting and source isolation remain. See [docs/V3_START_HERE_PT.md](docs/V3_START_HERE_PT.md) and [docs/API_V3.md](docs/API_V3.md). The sketch remains firmware 3.0.0; no new hardware or physical actuator driver is needed for V4's analysis layer. Receiver process reports application version 5.0.0.
 
 ## Audit, scope and validation
 
@@ -81,7 +91,7 @@ Report and sample results: [docs/VALIDATION.md](docs/VALIDATION.md). Runtime `da
 
 ## Five-version roadmap
 
-V1 dashboard/simulation → V2 sensors/calibration → V3 connectivity → **V4 trends and optional AI review** → V5 final integration/evaluation (planned).
+V1 dashboard/simulation → V2 sensors/calibration → V3 connectivity → **V4 trends and optional AI review** → **V5 integrated evaluation**.
 
 ## Primary API references
 
@@ -89,4 +99,4 @@ V1 dashboard/simulation → V2 sensors/calibration → V3 connectivity → **V4 
 - https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash
 - https://ai.google.dev/gemini-api/docs/deprecations
 
-MIT license retained from the existing repository. Version 4.0.0.
+MIT license retained from the existing repository. Version 5.0.0.

@@ -57,7 +57,7 @@ class Receiver:
             def do_GET(self):
                 parsed=urlsplit(self.path)
                 if parsed.path=='/health':
-                    self.reply(200,dict(status='ok',device_id=parent.device,version='4.0.0',physical_actuation=False))
+                    self.reply(200,dict(status='ok',device_id=parent.device,version='5.0.0',physical_actuation=False))
                 elif parsed.path=='/api/status':
                     source=parse_qs(parsed.query).get('source',['real'])[0]
                     if source not in ('real','test'):
